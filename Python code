@@ -1,0 +1,703 @@
+#Librariries needed
+
+# Data manipulation 
+import pandas as pd
+import numpy as np
+import re
+
+# Data visualization
+import seaborn as sns
+import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects 
+from sklearn.model_selection import learning_curve
+from sklearn.model_selection import validation_curve
+from random import randint
+
+# preprocessing and resampling
+from sklearn.preprocessing import StandardScaler
+from imblearn.over_sampling import SMOTE
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedKFold
+from imblearn.pipeline import make_pipeline as imbalanced_make_pipeline
+
+# metrics
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import cross_val_score
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import recall_score
+from sklearn.metrics import f1_score
+from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, confusion_matrix, f1_score,accuracy_score, precision_score, recall_score, roc_auc_score 
+
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import f_classif
+from sklearn.model_selection import RandomizedSearchCV
+
+import warnings
+warnings.filterwarnings("ignore")
+
+# ML model
+from sklearn.model_selection import train_test_split
+from sklearn import linear_model
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import GridSearchCV
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.pipeline import make_pipeline
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.svm import SVC
+#from yellowbrick.cluster import KElbowVisualizer
+from sklearn.cluster import KMeans
+
+import sklearn
+import researchpy as rp
+
+data=pd.read_csv("C:/Users/hadar/Desktop/Final/data.csv")
+
+#Removal of spaces in variable names
+lista_new_col = []
+for col in data.columns:
+  col = re.sub(' ', '_', col)
+  col = re.sub('-', '_', col)
+  lista_new_col.append(col)
+data.columns = lista_new_col
+
+print ( 'Shape of dataset:', data.shape )
+
+#Missing values checking
+data.isna().any().sum()
+
+#Identifying variable types
+numeric_features = data.dtypes[data.dtypes != 'int64'].index
+categorical_features = data.dtypes[data.dtypes == 'int64'].index
+
+data[categorical_features].columns.tolist()
+
+#Analyse univariée
+value = randint(0, len(colors)-1)
+
+sns.countplot('Bankrupt?',data=data,palette = colors[value])
+plt.savefig('unibankrupty.png')
+
+rp.summary_cat(data['Bankrupt?'])
+
+# Correlation analysis between the 6 most positively correlated variables and the 6 most negatively correlated with the dependent variable
+numeric_features = data.dtypes[data.dtypes != 'int64'].index
+categorical_features = data.dtypes[data.dtypes == 'int64'].index
+positive_corr = data[numeric_features].corrwith(data["Bankrupt?"]).sort_values(ascending=False)[:6].index.tolist()
+negative_corr = data[numeric_features].corrwith(data["Bankrupt?"]).sort_values()[:6].index.tolist()                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
+
+positive_corr = data[positive_corr + ["Bankrupt?"]].copy()
+negative_corr = data[negative_corr + ["Bankrupt?"]].copy()
+
+def corrbargraph(x_value, y_value):
+    
+    plt.figure(figsize=(15,8))
+   
+
+    for i in range(1,7):
+        plt.subplot(2,3,i)  
+        sns.barplot(x = x_value, y = y_value[i-1],data = data)
+
+    plt.tight_layout(pad=0.5)
+    
+    from random import randint
+x_value = positive_corr.columns.tolist()[-1]
+y_value = positive_corr.columns.tolist()[:-1]
+
+corrbargraph(x_value, y_value)
+plt.savefig('poscorr.png')
+
+x_value = negative_corr.columns.tolist()[-1]
+y_value = negative_corr.columns.tolist()[:-1]
+
+corrbargraph(x_value, y_value)
+plt.savefig('negcorr.png')
+
+df=data.drop(['_Net_worth/Assets','_Net_Income_Flag','_Liability_Assets_Flag'],1,inplace=True)
+
+# Separation of the dependent variable from the explanatory variables
+X = df.drop('Bankrupt?', axis=1)
+y = df['Bankrupt?']
+
+#Normalisation of variables for PCA
+sc = StandardScaler()
+X = sc.fit_transform(X)
+X = pd.DataFrame(X)
+
+from sklearn.decomposition import PCA
+acp = PCA(svd_solver='full')
+coord = acp.fit_transform(X)
+print(acp.explained_variance_)
+
+p = X.shape[1]
+n = X.shape[0]
+
+eigval=(n-1)/n*acp.explained_variance_
+print(acp.explained_variance_ratio_)
+
+plt.plot(np.arange(1,p+1),eigval)
+plt.title("Scree plot")
+plt.ylabel("Eigen values")
+plt.xlabel("Factor number")
+plt.show()
+plt.savefig('ncpcp1.png')
+
+np.cumsum(acp.explained_variance_ratio_)[60]
+
+plt.plot(np.arange(1,p+1),np.cumsum(acp.explained_variance_ratio_))
+plt.title("Explained variance vs. # of factors")
+plt.ylabel("Cumsum explained variance ratio")
+plt.xlabel("Factor number")
+plt.show()
+plt.savefig('ncpcp2.png')
+
+# creation of the object PCA
+pca = PCA(n_components=60)
+pca.fit(X)
+#pca_data = pca.transform(X) # get PCA coordinates for scaled_data
+coord = pca.fit_transform(X)
+
+
+per_var = np.round(pca.explained_variance_ratio_* 100, decimals=1) #percentage of variation which each PC represents
+labels = ['PC' + str(x) for x in range(1, len(per_var)+1)]
+plt.figure(figsize=(30,20))
+
+plt.bar(x=range(1,len(per_var)+1), height=per_var, tick_label=labels)
+plt.ylabel('Pourcentage de la variance expliquée')
+plt.xlabel('Principal Component')
+plt.title('')
+plt.show()
+
+plt.plot(range(1,len(per_var)+1),per_var, linestyle='--',
+              marker='o', color='black')
+plt.ylabel("Pourcentage de la variance expliquée")
+plt.xlabel("Composante principale")
+plt.title("")
+plt.tight_layout()
+plt.show()
+
+coord=pd.DataFrame(coord)
+coord
+
+coord.columns=['PC1','PC2','PC3','PC4','PC5','PC6','PC7','PC8','PC9','PC10','PC11','PC12','PC13','PC14','PC15','PC16','PC17','PC18','PC19','PC20','PC21','PC22','PC23','PC24','PC25','PC26','PC27','PC28','PC29','PC30','PC31','PC32','PC33','PC34','PC35','PC36','PC37','PC38','PC39','PC40','PC41','PC42','PC43','PC44','PC45','PC46','PC47','PC48','PC49','PC50','PC51','PC52','PC53','PC54','PC55','PC56','PC57','PC58','PC59','PC60']
+
+# smote  Resampling
+    #Traditional split of the dataset 80% - 20%
+    coord_train, coord_test, y_train, y_test = train_test_split(coord, y, test_size=0.2, random_state=42)
+    
+    coord_train, coord_test, y_train, y_test = coord_train.values, coord_test.values, y_train.values, y_test.values
+
+    #Proportional split of 80% data with respect to the class of the target feature ie. [1,0]
+    sf = StratifiedKFold(n_splits=5, random_state=None, shuffle=False)
+
+    for train_index, test_index in sf.split(coord_train, y_train):
+        sf_coord_train, sf_coord_test = coord.iloc[train_index], coord.iloc[test_index]
+        sf_y_train, sf_y_test = y.iloc[train_index], y.iloc[test_index]
+
+    sf_coord_train, sf_coord_test, sf_y_train, sf_y_test = sf_coord_train.values, sf_coord_test.values, sf_y_train.values, sf_y_test.values
+    
+    sm = SMOTE(sampling_strategy='minority', random_state=42)
+    coordsm_train, ycsm_train = sm.fit_resample(sf_coord_train, sf_y_train)
+
+#logistic regression based on PCA
+from sklearn.linear_model import LogisticRegression
+logreg = LogisticRegression()
+import statsmodels.api as sm
+logit_model=sm.Probit(ycsm_train,coordsm_train)
+result=logit_model.fit()
+print(result.summary2())
+
+logreg.fit(coordsm_train, ycsm_train)
+
+#confusion matrix 
+y_pred = logreg.predict(coord_test)
+from sklearn import metrics
+cnf_matrix = metrics.confusion_matrix(y_test, y_pred)
+cnf_matrix
+
+class_names=[0,1] # name  of classes
+fig, ax = plt.subplots()
+tick_marks = np.arange(len(class_names))
+plt.xticks(tick_marks, class_names)
+plt.yticks(tick_marks, class_names)
+# create heatmap
+sns.heatmap(pd.DataFrame(cnf_matrix), annot=True, cmap="YlGnBu" ,fmt='g')
+ax.xaxis.set_label_position("top")
+plt.tight_layout()
+plt.title('Confusion matrix', y=1.1)
+plt.ylabel('Actual label')
+plt.xlabel('Predicted label')
+plt.savefig('cmlogacp.png')
+
+#Model evaluation by some scores
+print(classification_report(y_test, y_pred))
+
+#Roc curve
+y_pred_proba = logreg.predict_proba(coord_test)[::,1]
+fpr, tpr, _ = metrics.roc_curve(y_test,  y_pred_proba)
+auc = metrics.roc_auc_score(y_test, y_pred_proba)
+plt.figure(figsize=(12,8))
+plt.plot(fpr,tpr,lw=2, label='ROC curve (area = %0.2f)' %auc)
+plt.legend(loc=4)
+plt.plot([0, 1], [0, 1], color='red', lw=2, linestyle='dotted')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver operating characteristic')
+plt.legend(loc="lower right")
+plt.show()
+plt.savefig('roclogacp.png')
+
+#SMOTE RESAMPLING
+    #Traditional split of the dataset 80% - 20%
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    X_train, X_test, y_train, y_test = X_train.values, X_test.values, y_train.values, y_test.values
+
+    #Proportional split of 80% data with respect to the class of the target feature ie. [1,0]
+    sf = StratifiedKFold(n_splits=5, random_state=None, shuffle=False)
+
+    for train_index, test_index in sf.split(X_train, y_train):
+        sf_X_train, sf_X_test = X.iloc[train_index], X.iloc[test_index]
+        sf_y_train, sf_y_test = y.iloc[train_index], y.iloc[test_index]
+
+    sf_X_train, sf_X_test, sf_y_train, sf_y_test = sf_X_train.values, sf_X_test.values, sf_y_train.values, sf_y_test.values
+    
+    sm = SMOTE(sampling_strategy='minority', random_state=42)
+    Xsm_train, ysm_train = sm.fit_resample(sf_X_train, sf_y_train)
+    
+    #Model fiting
+lasso = LogisticRegression(penalty='l1', C=0.01, solver='liblinear')   
+lasso.fit(Xsm_train, ysm_train)
+
+#Prediction
+y_lasso = lasso.predict(X_test)
+y_lasso
+
+#Confusion matrix
+cnf_matrix_lasso = metrics.confusion_matrix(y_test, y_lasso)
+cnf_matrix_lasso
+
+class_names=[0,1] # name  of classes
+fig, ax = plt.subplots()
+tick_marks = np.arange(len(class_names))
+plt.xticks(tick_marks, class_names)
+plt.yticks(tick_marks, class_names)
+# create heatmap
+sns.heatmap(pd.DataFrame(cnf_matrix_lasso), annot=True, cmap="YlGnBu" ,fmt='g')
+ax.xaxis.set_label_position("top")
+plt.tight_layout()
+plt.title('Confusion matrix', y=1.1)
+plt.ylabel('Actual label')
+plt.xlabel('Predicted label')
+plt.savefig('cmloglasso.png')
+
+#Model evaluation by some scores
+print(classification_report(y_test, y_lasso))
+
+#Model evaluation by some scores
+print(classification_report(y_test, y_lasso))
+
+#Model fiting
+ridge = LogisticRegression(penalty='l2', C=0.1)   # l1 = Lasso / l2 = Ridge. 
+ridge.fit(Xsm_train, ysm_train)
+
+#Predictions
+y_ridge = ridge.predict(X_test)
+y_ridge
+
+#Confusion matrix
+cnf_matrix_ridge = metrics.confusion_matrix(y_test, y_ridge)
+cnf_matrix_ridge
+
+class_names=[0,1] # name  of classes
+fig, ax = plt.subplots()
+tick_marks = np.arange(len(class_names))
+plt.xticks(tick_marks, class_names)
+plt.yticks(tick_marks, class_names)
+# create heatmap
+sns.heatmap(pd.DataFrame(cnf_matrix_ridge), annot=True, cmap="YlGnBu" ,fmt='g')
+ax.xaxis.set_label_position("top")
+plt.tight_layout()
+plt.title('Confusion matrix', y=1.1)
+plt.ylabel('Actual label')
+plt.xlabel('Predicted label')
+plt.savefig('cmlogridge.png')
+
+# Model evaluation by some scores
+print(classification_report(y_test, y_ridge))
+
+from sklearn.linear_model import LogisticRegression
+log = LogisticRegression(penalty='l1', solver='liblinear')
+log.fit(X, y)
+
+classifier = LogisticRegression(penalty='l1', solver = 'saga', multi_class="auto", max_iter=1000, random_state=3)
+classifier.fit(Xsm_train, ysm_train)
+y_en = classifier.predict(X_test)
+
+from sklearn.feature_selection import SelectFromModel
+sel=SelectFromModel(LogisticRegression(penalty='l1',C=0.05,solver='liblinear'))
+sel.fit(Xsm_train,ysm_train)
+sel.get_support()
+
+# features importances
+sel.estimator_.coef_
+
+#confusion matrix
+cnf_matrix_en = metrics.confusion_matrix(y_test, y_en)
+cnf_matrix_en
+
+class_names=[0,1] # name  of classes
+fig, ax = plt.subplots()
+tick_marks = np.arange(len(class_names))
+plt.xticks(tick_marks, class_names)
+plt.yticks(tick_marks, class_names)
+# create heatmap
+sns.heatmap(pd.DataFrame(cnf_matrix_en), annot=True, cmap="YlGnBu" ,fmt='g')
+ax.xaxis.set_label_position("top")
+plt.tight_layout()
+plt.title('Confusion matrix', y=1.1)
+plt.ylabel('Actual label')
+plt.xlabel('Predicted label')
+plt.savefig('cmlogen.png')
+
+#Model evaluation by some scores
+print(classification_report(y_test, y_en))
+
+modelSvc=SVC()
+
+# set the best parameters of svm classifier
+from sklearn.model_selection import GridSearchCV
+parameters = {'C': [0.001, 0.01, 1, 10, 100],  
+              'gamma': [1000, 1,  0.1, 0.01, 0.001], 
+              'kernel': ['rbf','linear','sigmoid','poly']} 
+grid=GridSearchCV(modelSvc,parameters,verbose=1,cv=2,n_jobs=-1)
+grid.fit(Xsm_train,ysm_train)
+
+# print the best parameters of the svm classifier
+print("Best Parameters of knn is:\n",grid.best_params_)
+
+svm_model=SVC(C=10,kernel='rbf',gamma=0.1,class_weight=None, probability=True)
+
+# Learning the svm classifier
+
+svm_model.fit(Xsm_train, ysm_train)
+
+# make prediction with the test 
+
+ysvm_pred = svm_model.predict(X_test)
+
+# print the confusion matrix
+svc_matrix = metrics.confusion_matrix(y_test, ysvm_pred)
+svc_matrix
+
+# print the classification report to show the accuracy, recall and precision 
+print(classification_report(y_test, ysvm_pred))
+
+# plot the confusion matrix 
+
+class_names=[0,1] 
+fig, ax = plt.subplots()
+tick_marks = np.arange(len(class_names))
+plt.xticks(tick_marks, class_names)
+plt.yticks(tick_marks, class_names)
+
+
+sns.heatmap(pd.DataFrame(svc_matrix), annot=True, cmap="Spectral" ,fmt='g')
+ax.xaxis.set_label_position("top")
+plt.tight_layout()
+plt.title('Confusion matrix', y=1.1)
+plt.ylabel('Actual label')
+plt.xlabel('Predicted label')
+plt.savefig('cmsvm.png')
+
+# plot the  ROC curve 
+
+ysvmpred_proba = svm_model.predict_proba(X_test)[::,1]
+fpr, tpr,_= metrics.roc_curve(y_test,  ysvmpred_proba)
+auc = metrics.roc_auc_score(y_test, ysvmpred_proba)
+plt.figure(figsize=(12,8))
+
+lw = 2
+plt.plot(fpr, tpr, color='darkorange',lw=lw, label='ROC curve (area = %0.2f)' %auc)
+plt.legend(loc=4)
+plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver operating characteristic')
+plt.legend(loc="lower right")
+plt.show()
+plt.savefig('rocsvm.png')
+
+from sklearn.neighbors import KNeighborsClassifier # import the package to make knn model
+
+# set the best parameters of Knn 
+parameters = {'n_neighbors':np.arange(3,10),'weights':['uniform', 'distance'],
+          'metric':['minkowski','manhattan','chebyshev'] }
+
+knn = KNeighborsClassifier()
+
+# import the package GridSearchCV
+from sklearn.model_selection import GridSearchCV
+# set the model with parameters 
+knn_cv = GridSearchCV(knn, param_grid=parameters, cv=5)
+
+# fit the learning knn model
+knn_cv.fit(Xsm_train,ysm_train)
+
+# find the best parameters 
+print("Best Parameters of knn is:\n",knn_cv.best_params_)
+
+# put the best parameters in knn model 
+knn_1 = KNeighborsClassifier(n_neighbors=4, weights='uniform', algorithm='auto', 
+                           leaf_size=30, p=1, metric='manhattan', metric_params=None, n_jobs=-1)
+                           
+# learning model with best parameters
+knn_1.fit(Xsm_train,ysm_train)
+
+# make prediction
+yknn_pred = knn_1.predict(X_test)
+
+# make the classification report 
+print(classification_report(y_test, yknn_pred))
+
+# print confusion matrix 
+knn_matrix = metrics.confusion_matrix(y_test, yknn_pred)
+knn_matrix
+
+
+# plot the matrix confusion 
+
+class_names=[0,1] 
+fig, ax = plt.subplots()
+tick_marks = np.arange(len(class_names))
+plt.xticks(tick_marks, class_names)
+plt.yticks(tick_marks, class_names)
+
+sns.heatmap(pd.DataFrame(knn_matrix), annot=True, cmap="Spectral" ,fmt='g')
+ax.xaxis.set_label_position("top")
+plt.tight_layout()
+plt.title('Confusion matrix', y=1.1)
+plt.ylabel('Actual label')
+plt.xlabel('Predicted label')
+plt.savefig('cmknn.png')
+
+#plot the roc curve
+yknn_pred_proba = knn_1.predict_proba(X_test)[::,1]
+fpr, tpr,_= metrics.roc_curve(y_test,  yknn_pred_proba)
+auc = metrics.roc_auc_score(y_test, yknn_pred_proba)
+plt.figure(figsize=(12,8))
+
+lw = 2
+plt.plot(fpr, tpr, color='darkorange',lw=lw, label='ROC curve (area = %0.2f)' %auc)
+plt.legend(loc=4)
+plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver operating characteristic')
+plt.legend(loc="lower right")
+plt.show()
+plt.savefig('rocknn.png')
+
+%%time
+from sklearn.metrics import accuracy_score
+from sklearn.ensemble import RandomForestClassifier
+def run_randomForest(Xsm_train, X_test, ysm_train, y_test):
+    clf = RandomForestClassifier(n_estimators=500,random_state=0, n_jobs=-1)
+    clf = clf.fit(Xsm_train, ysm_train)
+    yrf_pred = clf.predict(X_test)
+    print('Accuracy: {:.3f}'.format(accuracy_score(y_test, yrf_pred)))
+run_randomForest(Xsm_train, X_test, ysm_train, y_test)
+
+%%time
+from sklearn.ensemble import RandomForestClassifier
+# definition of parameters
+forest = RandomForestClassifier(n_estimators=500,
+criterion='gini', max_depth=None,
+min_samples_split=2, min_samples_leaf=1,
+max_features='auto', max_leaf_nodes=None,
+bootstrap=True, oob_score=True)
+# Training
+forest = forest.fit(Xsm_train,ysm_train)
+print(1-forest.oob_score_)
+# prevision error on the test
+1-forest.score(X_test,y_test)
+
+%%time
+from sklearn.model_selection import GridSearchCV
+param=[{"max_features":list(range(4,92,2))}]
+digit_rf= GridSearchCV(RandomForestClassifier(n_estimators=100,criterion='gini', max_depth=None,
+min_samples_split=2, min_samples_leaf=1,
+ max_leaf_nodes=None,
+bootstrap=True, oob_score=True),param,cv=5,n_jobs=-1)
+digit_rf=digit_rf.fit(Xsm_train, ysm_train)
+# optimal parameter
+digit_rf.best_params_
+
+
+digit_rf.best_params_.get('max_features')
+
+forest = RandomForestClassifier(n_estimators=500,
+criterion='gini', max_depth=None,
+min_samples_split=2, min_samples_leaf=1,
+max_features=digit_rf.best_params_.get('max_features'), max_leaf_nodes=None,
+bootstrap=True, oob_score=True)
+# Training
+forest = forest.fit(Xsm_train,ysm_train)
+print(1-forest.oob_score_)
+# prevision error on the test
+1-forest.score(X_test,y_test)
+# prediction
+y_chap = forest.predict(X_test)
+
+# make the classification report 
+print(classification_report(y_test, y_chap))
+
+rf_matrix = metrics.confusion_matrix(y_test, y_chap)
+rf_matrix
+
+# plot the matrix confusion 
+
+class_names=[0,1] 
+fig, ax = plt.subplots()
+tick_marks = np.arange(len(class_names))
+plt.xticks(tick_marks, class_names)
+plt.yticks(tick_marks, class_names)
+
+sns.heatmap(pd.DataFrame(rf_matrix), annot=True, cmap="Spectral" ,fmt='g')
+ax.xaxis.set_label_position("top")
+plt.tight_layout()
+plt.title('Confusion matrix', y=1.1)
+plt.ylabel('Actual label')
+plt.xlabel('Predicted label')
+plt.savefig('cmrf.png')
+
+y_chap1 = forest.predict_proba(X_test)
+
+#plot the ROC curve
+y_chap1 = forest.predict_proba(X_test)[::,1]
+fpr, tpr, _ = metrics.roc_curve(y_test,  y_chap1)
+auc = metrics.roc_auc_score(y_test, y_chap1)
+plt.figure(figsize=(12,8))
+#plt.plot(fpr,tpr,label="data 1, auc="+str(auc))
+lw = 2
+plt.plot(fpr, tpr, color='darkorange',lw=lw, label='ROC curve (area = %0.2f)' %auc)
+plt.legend(loc=4)
+plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver operating characteristic')
+plt.legend(loc="lower right")
+plt.show()
+plt.savefig('rocrf.png')
+
+Xsm_train=pd.DataFrame(Xsm_train)
+
+#features selection
+selected_feat= Xsm_train.columns[(sel.get_support())]
+selected_feat
+
+pip install tabulate
+
+#features importances
+from tabulate import tabulate
+headers = ["name", "score"]
+values = sorted(zip(selected_feat, forest.feature_importances_), key=lambda x: x[1] * -1)
+print(tabulate(values, headers, tablefmt="plain"))
+
+all(forest.feature_importances_ == np.mean([tree.feature_importances_ for tree in forest.estimators_], axis=0))
+
+importances = forest.feature_importances_
+# calculate the standard deviation of feature importances by looping over the trees in the random forest
+# 
+std = np.std([tree.feature_importances_ for tree in forest.estimators_], axis=0)
+
+indices = np.argsort(importances)[::-1]
+feature_names = X.columns
+
+# Plot the feature importances of the forest
+plt.figure()
+plt.title("Feature importances")
+plt.bar(range(9), importances[indices][0:9], color="r", align="center")
+plt.xticks(range(9), feature_names[indices][0:9], rotation=90)
+plt.xlim([-1, 9])
+plt.savefig('rffeatures1.png')
+
+dict={
+    "x":feature_names[indices][0:8],
+    "y":importances[indices][0:8]}
+AB=pd.DataFrame(dict)
+AB=AB.sort_values(by="y",ascending=True)
+AB
+import plotly.express as px
+fig = px.bar(AB,y='x', x='y',orientation='h')
+fig.show()
+plt.savefig('rffeatures2.png')
+
+# Gini index
+C0 = np.linspace(0,1)
+C1 = 1.0 - C0
+
+gini = 1 - C0**2 - C1**2
+
+plt.plot(C0, gini)
+plt.title('Gini index for a Binary Classification')
+plt.xlabel('Fraction of samples in class 0')
+plt.ylabel('Gini index')
+plt.savefig('ginirf.png')
+
+#library for score evaluation
+from sklearn import metrics
+from sklearn import cluster
+#use of "silhouette" metric
+#vary the number of clusters from 2 to 12
+res = np.arange(11,dtype="double")
+for k in np.arange(11):
+    km = cluster.KMeans(n_clusters=k+2)
+    km.fit(X)
+    res[k] = metrics.silhouette_score(X,km.labels_)
+print(res)
+#visualization
+import matplotlib.pyplot as plt
+plt.title("Silhouette")
+plt.xlabel("# of clusters")
+plt.plot(np.arange(2,13,1),res)
+plt.show()
+plt.savefig('kmeansk.png')
+
+#ACP
+from sklearn.decomposition import PCA
+acp=PCA(n_components=3)
+rpca=acp.fit_transform(X)
+
+# Save components to a DataFrame
+PCA_comp=pd.DataFrame(rpca,columns=['PC1','PC2','PC3'])
+
+#Let's make the regrouping
+from sklearn.cluster import KMeans
+kmeans = KMeans(n_clusters=4, random_state=0).fit(PCA_comp)
+cluster=kmeans.labels_
+PCA_comp['cluster']=cluster
+
+#Clusters size
+(PCA_comp['cluster']==0).sum(),(PCA_comp['cluster']==1).sum(),(PCA_comp['cluster']==2).sum(),(PCA_comp['cluster']==3).sum()
+
+#Plot our clusters 
+import plotly.express as px
+fig = px.scatter_3d(PCA_comp, x='PC1', y='PC2',z='PC3', color='cluster')
+fig.show()
+plt.savefig('cluster.png')
+
+
+END______________
+
